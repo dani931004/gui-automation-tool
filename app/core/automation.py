@@ -53,6 +53,8 @@ class AutomationEngine:
                 await self._execute_screenshot(params)
             elif step_type == 'find and click image':
                 return await self._execute_find_and_click_image(params)
+            elif step_type == 'press hotkey':
+                await self._execute_press_hotkey(params)
             else:
                 self.log(f"Unknown step type: {step_type}", 'error')
                 return False
@@ -163,3 +165,16 @@ class AutomationEngine:
         except Exception as e:
             self.log(f"Error finding/clicking image: {str(e)}", 'error')
             return False
+
+    async def _execute_press_hotkey(self, params: Dict[str, Any]) -> None:
+        """Execute a press hotkey step."""
+        keys = params.get('keys', [])
+        modifiers = params.get('modifiers', [])
+
+        if not keys and not modifiers:
+            self.log("No keys or modifiers specified for hotkey.", 'warning')
+            return
+
+        all_keys_to_press = modifiers + keys
+        self.log(f"Pressing hotkey: {', '.join(all_keys_to_press)}")
+        pyautogui.hotkey(*all_keys_to_press)

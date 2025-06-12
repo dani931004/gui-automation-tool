@@ -14,6 +14,15 @@ PositionType = Literal[
     'top_center', 'bottom_center', 'left_center', 'right_center'
 ]
 
+# Common modifier keys for keyboard shortcuts
+ModifierKey = Literal['ctrl', 'alt', 'shift', 'win', 'cmd']
+# Common special keys for keyboard shortcuts
+SpecialKey = Literal[
+    'enter', 'tab', 'esc', 'space', 'backspace', 'delete', 'insert', 'home', 'end',
+    'pageup', 'pagedown', 'up', 'down', 'left', 'right', 'f1', 'f2', 'f3', 'f4',
+    'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12'
+]
+
 class AutomationStep(TypedDict, total=False):
     """Represents a single automation step."""
     id: str
@@ -27,6 +36,10 @@ class AutomationStep(TypedDict, total=False):
     text: Optional[str]
     seconds: Optional[float]
     image_path: Optional[str]
+    # Keyboard action parameters
+    keys: Optional[List[str]]
+    modifiers: Optional[List[ModifierKey]]
+    key_sequence: Optional[List[Dict[str, Any]]]
     position: Optional[PositionType]
     confidence: Optional[float]
     max_attempts: Optional[int]
@@ -78,6 +91,20 @@ class AutomationState:
             return self.steps.pop(index)
         return None
     
+    def reorder_step(self, old_index: int, new_index: int) -> bool:
+        """Reorder a step from old_index to new_index."""
+        if not (0 <= old_index < len(self.steps) and 0 <= new_index < len(self.steps)):
+            print(f"Error: Invalid indices for reordering. old_index: {old_index}, new_index: {new_index}, steps_count: {len(self.steps)}")
+            return False
+        
+        try:
+            step_to_move = self.steps.pop(old_index)
+            self.steps.insert(new_index, step_to_move)
+            return True
+        except IndexError as e:
+            print(f"Error reordering step: {e}")
+            return False
+            
     def clear_steps(self) -> None:
         """Remove all steps."""
         self.steps.clear()

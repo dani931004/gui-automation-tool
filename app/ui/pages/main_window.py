@@ -66,7 +66,8 @@ class MainWindow:
                             'Type Text',
                             'Delay',
                             'Screenshot',
-                            'Find and Click Image'
+                            'Find and Click Image',
+                            'Press Hotkey'
                         ]
                         
                         # Initialize the select component with simple string options
@@ -385,6 +386,13 @@ class MainWindow:
                             img_name = os.path.basename(img_path) if img_path else 'No image'
                             ui.label(f"Find and click: {img_name}")
                             ui.badge(params.get('position', 'center'), color='secondary').props('rounded')
+
+                        elif step['type'] == 'Press Hotkey':
+                            ui.icon('keyboard_command_key').classes('text-gray-500') # Or 'keyboard'
+                            modifiers = params.get('modifiers', [])
+                            keys = params.get('keys', [])
+                            hotkey_str = "+".join(modifiers + keys)
+                            ui.label(f"Press: {hotkey_str if hotkey_str else 'No keys defined'}")
                     
                     # Spacer to push remove button to the right
                     ui.space()

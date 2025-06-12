@@ -4,7 +4,7 @@ UI components for step parameters.
 from typing import Dict, Any, Callable, Optional, List
 from nicegui import ui
 
-from app.core.models import PositionType, ButtonType
+from app.core.models import PositionType, ButtonType, ModifierKey
 
 
 class StepParameters:
@@ -298,6 +298,51 @@ class FindClickImageParameters(StepParameters):
         except Exception as e:
             print(f"Error in set_parameters: {e}")
 
+class PressHotkeyParameters(StepParameters):
+    """Parameters for Press Hotkey step."""
+
+    def __init__(self, on_change: Optional[Callable] = None):
+        super().__init__(on_change)
+        self.modifier_checkboxes: Dict[str, ui.checkbox] = {}
+        self.primary_key_input: Optional[ui.input] = None
+
+        with self.container:
+            ui.label("Modifier Keys:").classes('text-sm font-medium mb-1')
+            with ui.row().classes('gap-x-4 items-center'): # Added items-center for alignment
+                for mod in ModifierKey.__args__: # Iterate over defined ModifierKey literals
+                    self.modifier_checkboxes[mod] = ui.checkbox(mod.capitalize(), on_change=self._notify_change)
+
+            ui.label("Primary Key:").classes('text-sm font-medium mt-3 mb-1') # Increased mt for spacing
+            self.primary_key_input = ui.input(
+                label="Enter a single key (e.g., 'c', 'enter', 'f1')",
+                placeholder="e.g., c, enter, F1"
+            ).classes('w-full').on('update:model-value', self._notify_change)
+
+    def get_parameters(self) -> Dict[str, Any]:
+        """Get the current parameter values."""
+        modifiers = [mod for mod, cb in self.modifier_checkboxes.items() if cb.value]
+        
+        primary_key_value = ""
+        if self.primary_key_input and self.primary_key_input.value is not None:
+            primary_key_value = str(self.primary_key_input.value).strip()
+            
+        # Store the primary key in lowercase for consistency with pyautogui, if it's not empty
+        keys = [primary_key_value.lower()] if primary_key_value else []
+        
+        return {'modifiers': modifiers, 'keys': keys}
+
+    def set_parameters(self, params: Dict[str, Any]) -> None:
+        """Set the parameter values."""
+        selected_modifiers = params.get('modifiers', [])
+        for mod, cb in self.modifier_checkboxes.items():
+            cb.value = mod in selected_modifiers
+
+        keys_list = params.get('keys', [])
+        if self.primary_key_input:
+            if keys_list and isinstance(keys_list, list) and len(keys_list) > 0:
+                self.primary_key_input.value = str(keys_list[0])
+            else:
+                self.primary_key_input.value = ""
 
 def create_parameters(step_type: str, on_change: Optional[Callable] = None) -> StepParameters:
     """Create a parameter UI for the given step type.
@@ -311,49 +356,39 @@ def create_parameters(step_type: str, on_change: Optional[Callable] = None) -> S
     """
     try:
         if not step_type:
-            print("No step type provided, using default parameters")
-            return StepParameters(on_change)
+            print("No step type provided, using EmptyParameters")
+            return EmptyParameters(on_change)
             
         # Normalize the step type string
-        step_type = str(step_type).lower().strip()
-        print(f"Creating parameters for step type: {step_type}")
+        normalized_step_type = str(step_type).lower().strip()
+        print(f"Creating parameters for step type: {normalized_step_type}")
         
-        # Map of step type patterns to parameter classes
-        step_handlers = [
-            # Exact matches
-            ('move mouse', lambda: MoveMouseParameters(on_change)),
-            ('click', lambda: ClickParameters(on_change)),
-            ('type text', lambda: TypeTextParameters(on_change)),
-            ('delay', lambda: DelayParameters(on_change)),
-            
-            # Pattern matches (order matters!)
-            (lambda st: 'find' in st and 'click' in st and 'image' in st, 
-             lambda: FindClickImageParameters(on_change)),
-        ]
+        exact_match_map: Dict[str, Callable[[], StepParameters]] = {
+            'move mouse': lambda: MoveMouseParameters(on_change),
+            'click': lambda: ClickParameters(on_change),
+            'type text': lambda: TypeTextParameters(on_change),
+            'delay': lambda: DelayParameters(on_change),
+            'press hotkey': lambda: PressHotkeyParameters(on_change),
+            'screenshot': lambda: EmptyParameters(on_change), # Screenshots don't have UI configurable params
+        }
+
+        if normalized_step_type in exact_match_map:
+            print(f"Found exact match for {normalized_step_type}")
+            return exact_match_map[normalized_step_type]()
         
-        # Try exact matches first
-        for pattern, handler in step_handlers[:4]:  # First 4 are exact matches
-            if step_type == pattern:
-                print(f"Found exact match for {step_type}")
-                return handler()
-        
-        # Try pattern matches
-        for pattern, handler in step_handlers[4:]:  # Rest are pattern matchers
-            if pattern(step_type):
-                print(f"Found pattern match for {step_type}")
-                return handler()
+        # Pattern match for "Find and Click Image"
+        if 'find' in normalized_step_type and 'click' in normalized_step_type and 'image' in normalized_step_type:
+            print(f"Found pattern match for 'find and click image'")
+            return FindClickImageParameters(on_change)
                 
-        # No match found, use default
-        print(f"No match found for step type: {step_type}, using default parameters")
-        return StepParameters(on_change)
+        # Fallback for unknown step types
+        print(f"No specific parameters UI found for step type: {normalized_step_type}, using EmptyParameters.")
+        return EmptyParameters(on_change)
         
     except Exception as e:
         import traceback
         error_msg = f"Error creating parameters for step type '{step_type}': {e}"
         print(error_msg)
         traceback.print_exc()
-        # Create a default parameters instance and log the error
-        params = StepParameters(on_change)
-        if on_change:
-            on_change()  # Notify about the error
-        return params
+        # Fallback to EmptyParameters on error
+        return EmptyParameters(on_change)
