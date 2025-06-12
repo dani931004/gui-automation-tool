@@ -4,7 +4,7 @@ UI components for step parameters.
 from typing import Dict, Any, Callable, Optional, List
 from nicegui import ui
 
-from app.core.models import PositionType, ButtonType, ModifierKey
+from app.core.models import PositionType, ButtonType, ModifierKey, SpecialKey
 
 
 class StepParameters:
@@ -304,7 +304,7 @@ class PressHotkeyParameters(StepParameters):
     def __init__(self, on_change: Optional[Callable] = None):
         super().__init__(on_change)
         self.modifier_checkboxes: Dict[str, ui.checkbox] = {}
-        self.primary_key_input: Optional[ui.input] = None
+        self.primary_key_select: Optional[ui.select] = None
 
         with self.container:
             ui.label("Modifier Keys:").classes('text-sm font-medium mb-1')
@@ -313,20 +313,22 @@ class PressHotkeyParameters(StepParameters):
                     self.modifier_checkboxes[mod] = ui.checkbox(mod.capitalize(), on_change=self._notify_change)
 
             ui.label("Primary Key:").classes('text-sm font-medium mt-3 mb-1') # Increased mt for spacing
-            self.primary_key_input = ui.input(
-                label="Enter a single key (e.g., 'c', 'enter', 'f1')",
-                placeholder="e.g., c, enter, F1"
-            ).classes('w-full').on('update:model-value', self._notify_change)
+            self.primary_key_select = ui.select(
+                label="Select or type a key (e.g., 'c', 'enter', 'f1')",
+                options=list(SpecialKey.__args__), # Populate with SpecialKey literals
+                with_input=True, # Allow custom input
+                value=None # No default selection initially
+            ).classes('w-full').on('update:model-value', self._notify_change) # Use on_change for select
 
     def get_parameters(self) -> Dict[str, Any]:
         """Get the current parameter values."""
         modifiers = [mod for mod, cb in self.modifier_checkboxes.items() if cb.value]
         
         primary_key_value = ""
-        if self.primary_key_input and self.primary_key_input.value is not None:
-            primary_key_value = str(self.primary_key_input.value).strip()
+        if self.primary_key_select and self.primary_key_select.value is not None:
+            primary_key_value = str(self.primary_key_select.value).strip()
             
-        # Store the primary key in lowercase for consistency with pyautogui, if it's not empty
+        # Store the primary key in lowercase for consistency, if it's not empty
         keys = [primary_key_value.lower()] if primary_key_value else []
         
         return {'modifiers': modifiers, 'keys': keys}
