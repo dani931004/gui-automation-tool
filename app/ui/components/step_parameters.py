@@ -248,19 +248,18 @@ class FindClickImageParameters(StepParameters):
     def get_parameters(self) -> Dict[str, Any]:
         """Get the current parameter values."""
         try:
-            # Get the raw value from the select component
-            position_value = self.click_position.value if hasattr(self, 'click_position') else 'center'
+            position_value = self.click_position.value
             
             # If the value is a dictionary (from label/value pair), extract the value
             if isinstance(position_value, dict) and 'value' in position_value:
                 position_value = position_value['value']
             
             return {
-                'position': position_value,
-                'button': self.click_button.value if hasattr(self, 'click_button') and hasattr(self.click_button, 'value') else 'left',
-                'confidence': float(self.confidence.value) if hasattr(self, 'confidence') and hasattr(self.confidence, 'value') else 0.9,
-                'max_attempts': int(self.max_attempts.value) if hasattr(self, 'max_attempts') and hasattr(self.max_attempts, 'value') else 3,
-                'retry_interval': float(self.retry_interval.value) if hasattr(self, 'retry_interval') and hasattr(self.retry_interval, 'value') else 0.5
+                'position': position_value if position_value is not None else 'center',
+                'button': self.click_button.value, # Initialized, so .value is safe
+                'confidence': float(self.confidence.value) if self.confidence.value is not None else 0.9,
+                'max_attempts': int(self.max_attempts.value) if self.max_attempts.value is not None else 3,
+                'retry_interval': float(self.retry_interval.value) if self.retry_interval.value is not None else 0.5
             }
         except Exception as e:
             print(f"Error in get_parameters: {e}")
@@ -275,26 +274,19 @@ class FindClickImageParameters(StepParameters):
     def set_parameters(self, params: Dict[str, Any]) -> None:
         """Set the parameter values."""
         try:
-            position = params.get('position', 'center')
-            # If we have a list of options, find the matching one
-            if hasattr(self, 'position_options') and self.position_options:
-                for opt in self.position_options:
-                    if opt['value'] == position:
-                        self.click_position.value = opt['value']
-                        break
-                else:
-                    self.click_position.value = self.position_options[0]['value']
+            requested_position = params.get('position', 'center')
+            # Ensure the position_options are available and the requested_position is valid
+            valid_positions = [opt['value'] for opt in self.position_options]
+            if requested_position in valid_positions:
+                self.click_position.value = requested_position
             else:
-                self.click_position.value = position
-                
-            if hasattr(self, 'click_button') and hasattr(self.click_button, 'value'):
-                self.click_button.value = params.get('button', 'left')
-            if hasattr(self, 'confidence') and hasattr(self.confidence, 'value'):
-                self.confidence.value = params.get('confidence', 0.9)
-            if hasattr(self, 'max_attempts') and hasattr(self.max_attempts, 'value'):
-                self.max_attempts.value = params.get('max_attempts', 3)
-            if hasattr(self, 'retry_interval') and hasattr(self.retry_interval, 'value'):
-                self.retry_interval.value = params.get('retry_interval', 0.5)
+                # Default to the first option if the requested one isn't found or if none was provided
+                self.click_position.value = valid_positions[0] if valid_positions else 'center'
+
+            self.click_button.value = params.get('button', 'left')
+            self.confidence.value = params.get('confidence', 0.9)
+            self.max_attempts.value = params.get('max_attempts', 3)
+            self.retry_interval.value = params.get('retry_interval', 0.5)
         except Exception as e:
             print(f"Error in set_parameters: {e}")
 
