@@ -176,10 +176,6 @@ class GUIAutomationApp:
                     print(error_msg)  # Debug
                     self._log(error_msg, 'error')
                     
-            # Update the image selector if it exists
-            if hasattr(self, 'window') and hasattr(self.window, 'update_image_list'):
-                self.window.update_image_list()
-                
         except Exception as e:
             error_msg = f"Error handling upload: {str(e)}"
             print(error_msg)  # Debug

@@ -4,6 +4,7 @@ Main application window for the GUI Automation Tool.
 from typing import Dict, Any, List, Callable, Optional
 from pathlib import Path
 import os
+import types # Import the types module for SimpleNamespace
 
 from nicegui import ui
 
@@ -51,49 +52,38 @@ class MainWindow:
         
         # Main content
         with ui.column().classes('w-full p-4'):
-            # Add Step Section
-            with ui.card().classes('w-full mb-4'):
+            # --- Add Step Section ---
+            with ui.card().classes('w-full mb-4') as self.add_step_main_card:
                 ui.label('Add New Step').classes('text-xl font-bold')
                 
-                # Create a card for the step configuration
-                with ui.card().classes('w-full p-4 bg-gray-100') as self.params_card:
-                    # Add step type selection
-                    with ui.row().classes('w-full items-center'):
-                        # Define the step types as simple strings
-                        self.step_types = [
-                            'Move Mouse',
-                            'Click',
-                            'Type Text',
-                            'Delay',
-                            'Screenshot',
-                            'Find and Click Image',
-                            'Press Hotkey'
-                        ]
-                        
-                        # Initialize the select component with simple string options
-                        self.step_type_select = ui.select(
-                            label='Action Type',
-                            options=self.step_types,
-                            value=self.step_types[0],  # Use the first option as default
-                            on_change=lambda e: self._on_step_type_changed(e)
-                        ).classes('w-full')
-                        
-                        # Set the initial step type
-                        self.step_type = self.step_types[0]
-                        
-                        # Debug log
-                        print(f"Initialized step type select with value: {self.step_type}")
-                    
-                    # Create a container for the parameters UI
-                    self.parameters_container = ui.column().classes('w-full mt-4')
-                    
-                    # Initialize parameters UI with the default step type
-                    self._update_parameters_ui(self.step_type)
+                # Define the step types
+                self.step_types = [
+                    'Press Hotkey',
+                    'Find and Click Image',
+                    'Type Text',
+                    'Delay',
+                    'Click',
+                    'Move Mouse',
+                    'Screenshot',
+                ]
+                # Set the initial step type (used by other parts if select not ready)
+                self.step_type = self.step_types[0]
+
+                # Step type selection
+                self.step_type_select = ui.select(
+                    label='Action Type',
+                    options=self.step_types,
+                    value=self.step_type,
+                    on_change=self._on_step_type_changed # Direct call to method
+                ).classes('w-full')
+                
+                # Container for dynamic parameters UI (specific to step type)
+                self.parameters_container = ui.column().classes('w-full mt-4')
                 
                 # Image upload section
-                self.upload_container = ui.column().classes('w-full')
+                self.upload_container = ui.column().classes('w-full mt-2') # Added some margin
                 with self.upload_container:
-                    with ui.card().classes('w-full p-4 bg-blue-50') as self.upload_card:
+                    with ui.card().classes('w-full p-4 bg-blue-50'): # Inner card for styling
                         ui.label('Image Upload').classes('text-lg font-bold')
                         
                         # Upload button (always visible when this section is shown)
@@ -116,20 +106,15 @@ class MainWindow:
                         
                         # Initially hide the image selector
                         self.image_selector_container.set_visibility(False)
-                
                 # Initially hide the entire upload section
                 self.upload_container.set_visibility(False)
                 
-                # Parameters section (dynamically updated)
-                with ui.card().classes('w-full p-4 bg-gray-100') as self.params_card:
-                    self._update_parameters_ui(self.step_type_select.value)
-                
-                # Update params when step type changes
-                self.step_type_select.on('update:model-value', self._on_step_type_changed)
-                
                 # Add step button
-                ui.button('Add Step', on_click=self._on_add_step_clicked)
-            
+                ui.button('Add Step', on_click=self._on_add_step_clicked).classes('mt-4')
+
+                # Initial setup for parameters and visibility based on default step type
+                self._on_step_type_changed(self.step_type_select.value) # Pass current value
+
             # Current Steps Section
             with ui.card().classes('w-full mb-4'):
                 ui.label('Current Automation Steps').classes('text-xl font-bold')
@@ -145,22 +130,17 @@ class MainWindow:
                 ui.label('Execution Logs').classes('text-xl font-bold')
                 self.log_area = ui.log().classes('w-full h-48')
     
-    def _on_step_type_changed(self, event) -> None:
+    def _on_step_type_changed(self, event_or_value) -> None:
         """Handle step type change."""
         try:
-            # Extract the step type from the event
-            if hasattr(event, 'value'):
-                # Handle direct value (string)
-                step_type = event.value
-            elif hasattr(event, 'args') and isinstance(event.args, dict) and 'label' in event.args:
-                # Handle NiceGUI event with args
-                step_type = event.args['label']
-            elif isinstance(event, str):
-                # Handle direct string
-                step_type = event
+            step_type: str
+            if isinstance(event_or_value, str):  # Direct value passed (e.g., initial call)
+                step_type = event_or_value
+            elif hasattr(event_or_value, 'value'):  # Event object from on_change
+                step_type = event_or_value.value
             else:
-                # Fallback to default
-                step_type = 'Move Mouse'
+                self.log(f"Unexpected event type in _on_step_type_changed: {type(event_or_value)}", "warning")
+                step_type = self.step_types[0] if self.step_types else 'Move Mouse' # Fallback
                 
             # Store the current step type
             self.step_type = step_type
@@ -168,17 +148,13 @@ class MainWindow:
             # Debug log
             print(f"Step type changed to: {step_type}")
             
-            # Update the parameters UI with just the step type string
+            # Update the parameters UI
             self._update_parameters_ui(step_type)
             
             # Show/hide upload section based on step type
             is_image_step = step_type.lower() == 'find and click image'
             if hasattr(self, 'upload_container'):
                 self.upload_container.set_visibility(is_image_step)
-            
-            # Force UI update
-            if hasattr(self, 'params_card'):
-                ui.update(self.params_card)
             
             # Debug log
             self.log(f'Updated to step type: {step_type}', 'debug')
@@ -234,11 +210,6 @@ class MainWindow:
                 if hasattr(self, 'log'):
                     self.log(log_msg, 'debug')
                 
-            # Show/hide upload section based on step type
-            is_image_step = step_type.lower() == 'find and click image'
-            if hasattr(self, 'upload_container'):
-                self.upload_container.set_visibility(is_image_step)
-            
         except Exception as e:
             error_msg = f'Error updating parameters UI: {str(e)}'
             print(error_msg)
@@ -322,22 +293,41 @@ class MainWindow:
         Args:
             e: The upload event containing file data
         """
+        # The 'e' from ui.upload (single file, auto_upload=True) is UploadEventArguments
+        # It has e.name, e.type, e.content (a BinaryIO object)
+        # It does NOT have e.files
         try:
-            if not e or not hasattr(e, 'files') or not e.files:
+            if not e or not hasattr(e, 'name') or not e.name or not hasattr(e, 'content') or not e.content:
                 if hasattr(self, 'log'):
-                    self.log("No files were uploaded", 'warning')
+                    self.log("Upload event is missing name or content.", 'warning')
                 return
-                
-            # Call the parent's upload handler
-            self.on_upload_image(e)
+
+            # Read the content from the BinaryIO object
+            file_content_bytes = e.content.read()
+            if not file_content_bytes:
+                if hasattr(self, 'log'):
+                    self.log(f"Uploaded file '{e.name}' is empty.", 'warning')
+                return
+
+            # GUIAutomationApp._handle_upload (self.on_upload_image) expects an event 'e'
+            # where e.files is a list of objects, each having 'name' and 'content' attributes.
+            # We need to construct this structure.
             
-            # Show success message
-            if hasattr(self, 'log'):
-                self.log(f"Successfully processed {len(e.files)} file(s)", 'success')
-                
-        except Exception as e:
-            error_msg = f"Error handling upload: {str(e)}"
-            print(error_msg)
+            # Create a mock file object that matches the expected structure
+            mock_file_data = types.SimpleNamespace(name=e.name, content=file_content_bytes)
+            
+            # Create a mock event object that GUIAutomationApp._handle_upload expects
+            mock_event_for_app_handler = types.SimpleNamespace(files=[mock_file_data])
+            
+            # Call the application's upload handler with the adapted event
+            self.on_upload_image(mock_event_for_app_handler)
+            
+            # The success message is now handled by GUIAutomationApp._handle_upload
+        except Exception as ex: # Renamed to avoid conflict with 'e' from event
+            error_msg = f"Error in MainWindow._handle_upload for '{e.name if hasattr(e, 'name') else 'unknown file'}': {str(ex)}"
+            print(error_msg) # Print for immediate visibility
+            import traceback
+            traceback.print_exc()
             if hasattr(self, 'log'):
                 self.log(error_msg, 'error')
     
@@ -418,31 +408,39 @@ class MainWindow:
         """Clear all steps from the UI."""
         self.steps_list.clear()
     
-    def update_image_list(self) -> None:
-        """Update the image selector with the current list of uploaded images."""
+    def update_image_list(self, select_this_filename: Optional[str] = None) -> None:
+        """Update the image selector with the current list of uploaded images.
+        
+        Args:
+            select_this_filename: If provided, attempt to select this filename.
+        """
         if not hasattr(self, 'image_selector'):
             return
             
         try:
-            # Get the current selection to preserve it if possible
-            current_selection = self.image_selector.value
+            # Preserve current selection before options are reset
+            current_selection_before_options_update = self.image_selector.value
             
             # Update the options
             options = list(self.uploaded_images.keys())
-            self.image_selector.set_options(options)
+            self.image_selector.set_options(options) # This might clear/reset .value
             
-            # Restore selection if it still exists
-            if current_selection in options:
-                self.image_selector.value = current_selection
-            elif options:  # Select the first option if no selection
-                self.image_selector.value = options[0]
+            new_value_to_set = None
+            if select_this_filename and select_this_filename in options:
+                new_value_to_set = select_this_filename
+            elif current_selection_before_options_update in options:
+                # If previous selection is still valid and no specific new one, keep it
+                new_value_to_set = current_selection_before_options_update
+            elif options: # If no specific or previous valid selection, pick the first
+                new_value_to_set = options[0]
+            
+            self.image_selector.value = new_value_to_set
                 
             # Show the selector if we have images, hide otherwise
             if hasattr(self, 'image_selector_container'):
                 self.image_selector_container.set_visibility(bool(options))
                 
         except Exception as e:
-            print(f"Error updating image list: {e}")
             if hasattr(self, 'log'):
                 self.log(f"Error updating image list: {e}", 'error')
     
@@ -457,8 +455,14 @@ class MainWindow:
             # Add or update the image in the dictionary
             self.uploaded_images[filename] = filepath
             
-            # Update the image selector
-            self.update_image_list()
+            filename_to_select_after_update = None
+            if (hasattr(self, 'step_type_select') and
+                self.step_type_select.value == 'Find and Click Image' and
+                hasattr(self, 'image_selector')):
+                filename_to_select_after_update = filename
+            
+            # Update the image selector, attempting to select the new file if appropriate
+            self.update_image_list(select_this_filename=filename_to_select_after_update)
             
             # Log the successful upload
             if hasattr(self, 'log'):

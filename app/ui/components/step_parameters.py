@@ -81,8 +81,8 @@ class MoveMouseParameters(StepParameters):
         """Get the current parameter values."""
         try:
             return {
-                'x': int(self.x_pos.value) if hasattr(self, 'x_pos') and self.x_pos.value is not None else 0,
-                'y': int(self.y_pos.value) if hasattr(self, 'y_pos') and self.y_pos.value is not None else 0
+                'x': int(self.x_pos.value) if self.x_pos.value is not None else 0,
+                'y': int(self.y_pos.value) if self.y_pos.value is not None else 0
             }
         except (ValueError, AttributeError) as e:
             print(f"Error getting move mouse parameters: {e}")
@@ -118,9 +118,9 @@ class ClickParameters(StepParameters):
     def get_parameters(self) -> Dict[str, Any]:
         try:
             return {
-                'x': int(self.x_pos.value) if hasattr(self, 'x_pos') and self.x_pos.value is not None else 0,
-                'y': int(self.y_pos.value) if hasattr(self, 'y_pos') and self.y_pos.value is not None else 0,
-                'button': self.button.value if hasattr(self, 'button') and hasattr(self.button, 'value') else 'left'
+                'x': int(self.x_pos.value) if self.x_pos.value is not None else 0,
+                'y': int(self.y_pos.value) if self.y_pos.value is not None else 0,
+                'button': self.button.value # Initialized with 'left', so .value should always be valid
             }
         except (ValueError, AttributeError) as e:
             print(f"Error getting click parameters: {e}")
@@ -143,7 +143,7 @@ class TypeTextParameters(StepParameters):
     
     def get_parameters(self) -> Dict[str, Any]:
         try:
-            return {'text': self.text.value if hasattr(self, 'text') and hasattr(self.text, 'value') else ''}
+            return {'text': self.text.value if self.text.value is not None else ''}
         except Exception as e:
             print(f"Error getting text parameters: {e}")
             return {'text': ''}
@@ -168,7 +168,7 @@ class DelayParameters(StepParameters):
     
     def get_parameters(self) -> Dict[str, Any]:
         try:
-            return {'seconds': float(self.seconds.value) if hasattr(self, 'seconds') and self.seconds.value is not None else 1.0}
+            return {'seconds': float(self.seconds.value) if self.seconds.value is not None else 1.0}
         except (ValueError, AttributeError) as e:
             print(f"Error getting delay parameters: {e}")
             return {'seconds': 1.0}
@@ -340,11 +340,11 @@ class PressHotkeyParameters(StepParameters):
             cb.value = mod in selected_modifiers
 
         keys_list = params.get('keys', [])
-        if self.primary_key_input:
+        if self.primary_key_select: # Changed primary_key_input to primary_key_select
             if keys_list and isinstance(keys_list, list) and len(keys_list) > 0:
-                self.primary_key_input.value = str(keys_list[0])
+                self.primary_key_select.value = str(keys_list[0])
             else:
-                self.primary_key_input.value = ""
+                self.primary_key_select.value = "" # Or None, depending on desired reset state
 
 def create_parameters(step_type: str, on_change: Optional[Callable] = None) -> StepParameters:
     """Create a parameter UI for the given step type.
